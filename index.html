@@ -1,0 +1,796 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f4c5c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>InvoiceScan</title>
+<style>
+:root{
+  --bg:#f4f6f8;--surface:#fff;--ink:#14212b;--muted:#5d6b78;--line:#e1e6eb;
+  --brand:#0f4c5c;--brand-ink:#fff;--accent:#e36414;
+  --ok:#1b7f4b;--ok-bg:#e3f4ea;--warn:#a05a00;--warn-bg:#fdf0d9;
+  --err:#b3261e;--err-bg:#fbe5e3;--info:#1a5fb4;--info-bg:#e1ecfa;
+  --radius:14px;--tab-h:64px;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0e1419;--surface:#17202a;--ink:#e8eef3;--muted:#93a1ad;--line:#27333f;
+    --brand:#2a8aa3;--brand-ink:#04161b;--accent:#ff8a3d;
+    --ok:#5fd394;--ok-bg:#12301f;--warn:#f0b35a;--warn-bg:#33270f;
+    --err:#ff8a80;--err-bg:#3a1714;--info:#7db4ff;--info-bg:#122238;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0e1419;--surface:#17202a;--ink:#e8eef3;--muted:#93a1ad;--line:#27333f;
+  --brand:#2a8aa3;--brand-ink:#04161b;--accent:#ff8a3d;
+  --ok:#5fd394;--ok-bg:#12301f;--warn:#f0b35a;--warn-bg:#33270f;
+  --err:#ff8a80;--err-bg:#3a1714;--info:#7db4ff;--info-bg:#122238;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+#app{max-width:520px;margin:0 auto;min-height:100vh;padding:0 16px calc(var(--tab-h) + 28px + env(safe-area-inset-bottom))}
+header.top{position:sticky;top:0;z-index:5;background:var(--bg);padding:16px 0 10px;display:flex;align-items:center;justify-content:space-between}
+header.top h1{margin:0;font-size:20px;letter-spacing:-.2px}
+header.top small{display:block;color:var(--muted);font-size:12px;font-weight:400}
+.iconbtn{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;width:38px;height:38px;display:grid;place-items:center;cursor:pointer}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:12px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px;cursor:pointer;text-align:left;color:inherit;font:inherit}
+.stat b{display:block;font-size:26px;line-height:1.1;font-variant-numeric:tabular-nums}
+.stat span{font-size:12px;color:var(--muted)}
+.stat.ok b{color:var(--ok)}.stat.warn b{color:var(--warn)}.stat.err b{color:var(--err)}.stat.info b{color:var(--info)}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin:20px 0 8px;font-weight:600}
+.btn{border:0;border-radius:12px;padding:13px 16px;font:inherit;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;width:100%}
+.btn.primary{background:var(--brand);color:var(--brand-ink)}
+.btn.accent{background:var(--accent);color:#fff}
+.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--ink)}
+.btn.danger{background:transparent;border:1px solid var(--err);color:var(--err)}
+.btn.sm{padding:9px 12px;font-size:13px;width:auto}
+.btn:active{transform:scale(.98)}
+.btn:disabled{opacity:.5}
+.pill{display:inline-block;border-radius:99px;padding:2px 9px;font-size:11px;font-weight:700}
+.pill.Pending{background:var(--warn-bg);color:var(--warn)}
+.pill.Completed{background:var(--ok-bg);color:var(--ok)}
+.pill.Error{background:var(--err-bg);color:var(--err)}
+.pill.Reviewed{background:var(--info-bg);color:var(--info)}
+.row{display:flex;gap:12px;align-items:center}
+.inv{display:flex;gap:12px;align-items:center;padding:12px;border:1px solid var(--line);background:var(--surface);border-radius:var(--radius);margin-bottom:8px;cursor:pointer}
+.inv .thumb{width:46px;height:56px;border-radius:8px;background:var(--bg) center/cover;border:1px solid var(--line);flex:none}
+.inv .mid{flex:1;min-width:0}
+.inv .mid b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.inv .mid span{color:var(--muted);font-size:12px}
+.inv .end{text-align:right;flex:none}
+.inv .end b{display:block;font-variant-numeric:tabular-nums;font-size:14px}
+.muted{color:var(--muted)}
+.small{font-size:12px}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%}
+input:focus,select:focus{outline:2px solid var(--brand);outline-offset:-1px}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin:8px 0}
+.chip{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:99px;padding:6px 12px;font:inherit;font-size:13px;white-space:nowrap;cursor:pointer}
+.chip.on{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
+nav.tabs{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);z-index:10;padding-bottom:env(safe-area-inset-bottom)}
+nav.tabs div{max-width:520px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr);height:var(--tab-h)}
+nav.tabs button{background:none;border:0;color:var(--muted);font:inherit;font-size:11px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer}
+nav.tabs button.on{color:var(--brand)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) nav.tabs button.on{color:var(--accent)}}
+:root[data-theme="dark"] nav.tabs button.on{color:var(--accent)}
+.banner{background:var(--info-bg);color:var(--info);border-radius:var(--radius);padding:12px 14px;margin-bottom:12px}
+.bar{height:6px;border-radius:9px;background:var(--line);overflow:hidden;margin-top:8px}
+.bar i{display:block;height:100%;background:var(--brand);width:0;transition:width .2s}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-weight:600;font-size:12px}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.scanbtn{display:flex;gap:14px;align-items:center;text-align:left;padding:16px;border-radius:var(--radius);border:1px solid var(--line);background:var(--surface);color:var(--ink);font:inherit;width:100%;margin-bottom:10px;cursor:pointer}
+.scanbtn .ic{width:46px;height:46px;border-radius:12px;background:var(--brand);color:var(--brand-ink);display:grid;place-items:center;flex:none}
+.scanbtn b{display:block}
+.scanbtn span{color:var(--muted);font-size:13px}
+/* sheet */
+#sheet{position:fixed;inset:0;z-index:20;display:none;background:rgba(0,0,0,.45)}
+#sheet.open{display:block}
+#sheet .panel{position:absolute;left:0;right:0;bottom:0;top:28px;max-width:520px;margin:0 auto;background:var(--bg);border-radius:20px 20px 0 0;display:flex;flex-direction:column;overflow:hidden}
+#sheet .head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line);background:var(--surface)}
+#sheet .body{flex:1;overflow:auto;padding:14px 16px 20px}
+#sheet .foot{padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:var(--surface);border-top:1px solid var(--line);display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#sheet .foot .full{grid-column:1/-1}
+.preview{width:100%;max-height:220px;object-fit:contain;background:#000;border-radius:12px;cursor:zoom-in}
+.preview.big{max-height:none}
+.f{margin-bottom:10px}
+.f label{display:block;font-size:12px;color:var(--muted);margin-bottom:3px}
+.f.bad input{border-color:var(--err);background:var(--err-bg)}
+.f .why{color:var(--err);font-size:12px;margin-top:2px}
+.issues{background:var(--err-bg);color:var(--err);border-radius:12px;padding:10px 12px;margin:12px 0;font-size:13px}
+.issues ul{margin:4px 0 0 18px;padding:0}
+details summary{cursor:pointer;color:var(--muted);font-size:13px;margin:8px 0}
+pre{white-space:pre-wrap;font-size:11px;background:var(--surface);border:1px solid var(--line);padding:8px;border-radius:8px;max-height:200px;overflow:auto}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--tab-h) + 16px + env(safe-area-inset-bottom));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:99px;font-size:13px;z-index:30;opacity:0;pointer-events:none;transition:opacity .2s;max-width:90vw;text-align:center}
+#toast.show{opacity:1}
+.empty{text-align:center;color:var(--muted);padding:30px 10px}
+input[type=file]{display:none}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<nav class="tabs"><div id="tabs"></div></nav>
+<div id="sheet"><div class="panel"></div></div>
+<div id="toast"></div>
+<input type="file" id="fCam" accept="image/*" capture="environment">
+<input type="file" id="fPick" accept="image/jpeg,image/png,application/pdf" multiple>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.0/tesseract.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+"use strict";
+/* =====================================================================
+   InvoiceScan — Phase 1 of the Bulk Invoice Scanning & Data Extraction FRD
+   FR-3..5 upload/store · FR-6..10 extraction · FR-11..13 validation
+   FR-14..16 export · FR-17..21 dashboard, search, reports, logs
+   ===================================================================== */
+
+/* ---------- field model (FR-7 order = Excel header order, FR-15) ---------- */
+const FIELDS=[
+ ['vendorName','Vendor Name','t'],['vendorGstin','Vendor GSTIN','g'],
+ ['supplierName','Supplier Name','t'],['supplierGstin','Supplier GSTIN','g'],
+ ['consigneeName','Consignee Name','t'],['consigneeGstin','Consignee GSTIN','g'],
+ ['gstRate','GST Rate','r'],['invoiceNo','Invoice Number','t'],['invoiceDate','Invoice Date','d'],
+ ['poNo','PO Number','t'],['poDate','PO Date','d'],['total','Total Amount','n'],
+ ['tax','Tax Amount','n'],['currency','Invoice Currency','c'],['cgst','CGST','n'],
+ ['sgst','SGST','n'],['igst','IGST','n'],['cess','Cess','n'],['dueDate','Terms / Due Date','d']
+];
+const REQUIRED=['vendorName','vendorGstin','invoiceNo','invoiceDate','total'];
+const STATUSES=['Pending','Completed','Error','Reviewed'];
+const GSTIN_RX=/^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
+const GSTIN_FIND=/\b\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]\b/g;
+
+/* ---------- tiny IndexedDB wrapper (secure on-device repository, FR-5) ---------- */
+const DB={
+ db:null,
+ open(){return new Promise((res,rej)=>{
+  const r=indexedDB.open('invoicescan',1);
+  r.onupgradeneeded=()=>{const d=r.result;d.createObjectStore('inv',{keyPath:'id'});d.createObjectStore('log',{keyPath:'id',autoIncrement:true});};
+  r.onsuccess=()=>{DB.db=r.result;res()};r.onerror=()=>rej(r.error);
+ })},
+ tx(store,mode,fn){return new Promise((res,rej)=>{
+  const t=DB.db.transaction(store,mode),s=t.objectStore(store),q=fn(s);
+  t.oncomplete=()=>res(q&&q.result);t.onerror=()=>rej(t.error);
+ })},
+ all(store){return DB.tx(store,'readonly',s=>s.getAll())},
+ put(store,v){return DB.tx(store,'readwrite',s=>s.put(v))},
+ clear(store){return DB.tx(store,'readwrite',s=>s.clear())}
+};
+
+/* ---------- state ---------- */
+const S={tab:'home',invs:[],logs:[],q:'',status:'All',from:'',to:'',vendor:'',
+ queue:[],busy:false,done:0,total:0,msg:'',sheetId:null};
+let worker=null;
+
+/* ---------- helpers ---------- */
+const $=s=>document.querySelector(s);
+const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const empty=v=>v==null||v===''||(typeof v==='number'&&isNaN(v));
+const money=v=>empty(v)?'—':Number(v).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>t.classList.remove('show'),2600)}
+async function log(action,detail){const e={ts:new Date().toISOString(),action,detail};S.logs.push(e);try{await DB.put('log',e)}catch(_){}}
+const I={ // icons
+ home:'<path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+ scan:'<path d="M4 8V5a1 1 0 0 1 1-1h3M20 8V5a1 1 0 0 0-1-1h-3M4 16v3a1 1 0 0 0 1 1h3M20 16v3a1 1 0 0 1-1 1h-3M4 12h16"/>',
+ list:'<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
+ chart:'<path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/>',
+ cam:'<path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/>',
+ up:'<path d="M12 16V4M6 10l6-6 6 6M4 20h16"/>',
+ dl:'<path d="M12 4v12M6 10l6 6 6-6M4 20h16"/>',
+ x:'<path d="M6 6l12 12M18 6L6 18"/>',
+ moon:'<path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/>'
+};
+const ico=(n,s=22)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${I[n]}</svg>`;
+
+/* ---------- date handling (FR-11): accept many formats, output DD/MM/YYYY ---------- */
+const MON={jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+const p2=n=>String(n).padStart(2,'0');
+function mkDate(d,m,y){
+ d=+d;m=+m;y=+y; if(y<100)y+=2000;
+ if(m<1||m>12||d<1||d>31||y<1990||y>2100)return '';
+ const t=new Date(y,m-1,d); if(t.getMonth()!==m-1)return '';
+ return `${p2(d)}/${p2(m)}/${y}`;
+}
+function findDate(str){
+ if(!str)return '';
+ let m=str.match(/\b(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})\b/); if(m){const r=mkDate(m[3],m[2],m[1]);if(r)return r}
+ m=str.match(/\b(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})\b/); if(m){const r=mkDate(m[1],m[2],m[3]);if(r)return r}
+ m=str.match(/\b(\d{1,2})(?:st|nd|rd|th)?[\s\-,]+([A-Za-z]{3,9})\.?[\s\-,]+(\d{2,4})\b/);
+ if(m&&MON[m[2].slice(0,3).toLowerCase()]){const r=mkDate(m[1],MON[m[2].slice(0,3).toLowerCase()],m[3]);if(r)return r}
+ return '';
+}
+const dmyToISO=s=>{const m=/^(\d{2})\/(\d{2})\/(\d{4})$/.exec(s||'');return m?`${m[3]}-${m[2]}-${m[1]}`:''};
+
+/* ---------- parser: OCR text -> fields (FR-6/7/8) ---------- */
+function numsIn(line){ // numbers not followed by %
+ const out=[],rx=/(\d[\d,]*(?:\.\d+)?)(\s*%)?/g;let m;
+ while((m=rx.exec(line))){ if(m[2])continue; const n=parseFloat(m[1].replace(/,/g,'')); if(!isNaN(n))out.push(n); }
+ return out;
+}
+function parseInvoice(text){
+ const lines=text.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+ const f={}; FIELDS.forEach(x=>f[x[0]]=null);
+
+ /* amounts */
+ const amtFor=(re,pick='last')=>{
+  let best=null;
+  lines.forEach((l,i)=>{
+   if(!re.test(l)||/in words/i.test(l))return;
+   let n=numsIn(l.replace(re,' '));
+   if(!n.length&&lines[i+1])n=numsIn(lines[i+1]);
+   if(!n.length)return;
+   const v=pick==='max'?Math.max(...n):n[n.length-1];
+   if(best==null||(pick==='max'&&v>best))best=v;
+   if(pick!=='max'&&best==null)best=v;
+  });
+  return best;
+ };
+ f.cgst=amtFor(/\bc\.?g\.?s\.?t\b/i);
+ f.sgst=amtFor(/\b(s\.?g\.?s\.?t|utgst)\b/i);
+ f.igst=amtFor(/\bi\.?g\.?s\.?t\b/i);
+ f.cess=amtFor(/\bcess\b/i);
+ f.total=amtFor(/grand\s*total|total\s*invoice\s*(value|amount)|invoice\s*total|invoice\s*value|net\s*payable|amount\s*payable|total\s*amount|\btotal\b/i,'max');
+ const comp=[f.cgst,f.sgst,f.igst,f.cess].filter(v=>v!=null);
+ f.tax=amtFor(/total\s*(gst|tax)\b|tax\s*amount/i);
+ if(f.tax==null&&comp.length)f.tax=+comp.reduce((a,b)=>a+b,0).toFixed(2);
+
+ /* GST rate */
+ let rate=null,m;
+ for(const l of lines){
+  if((m=l.match(/\bi\.?g\.?s\.?t\b[^\d%]*(\d{1,2}(?:\.\d+)?)\s*%/i))){rate=parseFloat(m[1]);break}
+ }
+ if(rate==null)for(const l of lines){
+  if((m=l.match(/\b(?:c\.?g\.?s\.?t|s\.?g\.?s\.?t)\b[^\d%]*(\d{1,2}(?:\.\d+)?)\s*%/i))){rate=parseFloat(m[1])*2;break}
+ }
+ if(rate==null)for(const l of lines){
+  if((m=l.match(/\bgst\b[^\d%]*(\d{1,2}(?:\.\d+)?)\s*%/i))){rate=parseFloat(m[1]);break}
+ }
+ if(rate==null&&f.total&&f.tax){
+  const taxable=f.total-f.tax;
+  if(taxable>0){const r=f.tax/taxable*100;const c=[0.25,3,5,12,18,28].find(x=>Math.abs(x-r)<0.6);if(c)rate=c}
+ }
+ f.gstRate=rate;
+
+ /* GSTINs */
+ const gl=[]; // [{g,i}]
+ lines.forEach((l,i)=>{ (l.toUpperCase().replace(/[\s]/g,' ').match(GSTIN_FIND)||[]).forEach(g=>gl.push({g,i})) });
+ const consIdx=lines.findIndex(l=>/consignee|bill(?:ed)?\s*to|ship(?:ped)?\s*to|buyer|sold\s*to|customer/i.test(l));
+ let cons=null;
+ if(consIdx>=0)cons=gl.find(x=>x.i>=consIdx&&x.i<=consIdx+8)||null;
+ let ven=gl.find(x=>(!cons||x.g!==cons.g)&&(consIdx<0||x.i<consIdx||x.i>consIdx+8))||gl.find(x=>!cons||x.g!==cons.g)||null;
+ if(ven)f.vendorGstin=ven.g;
+ if(cons&&(!ven||cons.g!==ven.g))f.consigneeGstin=cons.g;
+ f.supplierGstin=f.vendorGstin;
+
+ /* names */
+ const BAD=/invoice|tax|original|duplicate|triplicate|gstin|bill|page|receipt|copy|date|^\W*$/i;
+ const top=lines.slice(0,10).find(l=>/[A-Za-z]{3,}/.test(l)&&!BAD.test(l)&&l.length<70);
+ if(top){f.vendorName=top.replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9.)]+$/g,'');f.supplierName=f.vendorName}
+ if(consIdx>=0){
+  let after=lines[consIdx].replace(/^.*?(consignee|bill(?:ed)?\s*to|ship(?:ped)?\s*to|buyer|sold\s*to|customer)[^:\-A-Za-z]*(?:\(.*?\))?\s*[:\-]?/i,'').trim();
+  if(!/[A-Za-z]{3,}/.test(after)||GSTIN_FIND.test(after.toUpperCase())){
+   after=(lines.slice(consIdx+1,consIdx+4).find(l=>/[A-Za-z]{3,}/.test(l)&&!/gstin|address|state|phone|mobile/i.test(l))||'');
+  }
+  GSTIN_FIND.lastIndex=0;
+  if(after)f.consigneeName=after.replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9.)]+$/g,'');
+ }
+
+ /* invoice no / PO no */
+ const INVLBL=/(?:tax\s*invoice|invoice|inv|bill|document|voucher)\s*(?:no\b|number|num\b|#)\.?/i;
+ m=text.match(new RegExp(INVLBL.source+'\\s*[:\\-#]?\\s*(?!date|dated)([A-Z0-9][A-Z0-9\\/\\-\\.]{1,24})','i'));
+ if(m&&/\d/.test(m[1]))f.invoiceNo=m[1].replace(/[.\-\/]+$/,'');
+ if(!f.invoiceNo){ // label on one line, value on the next (column layouts)
+  for(let i=0;i<lines.length;i++){
+   if(!INVLBL.test(lines[i]))continue;
+   const nx=(lines[i+1]||'').split(/\s{2,}|\s/).find(t=>/\d/.test(t)&&!findDate(t)&&t.length>2);
+   if(nx){f.invoiceNo=nx.replace(/[^A-Z0-9\/\-.]/gi,'').replace(/[.\-\/]+$/,'');break}
+  }
+ }
+ if(!f.invoiceNo){const fm=text.match(/\b(?:INV|BILL)[\/\-]?[A-Z0-9\/\-]*\d[A-Z0-9\/\-]*/i);if(fm)f.invoiceNo=fm[0]}
+ if(f.total==null){ // last resort: biggest amount with decimals in the document
+  const all=[];lines.forEach(l=>(l.match(/\d[\d,]*\.\d{2}\b/g)||[]).forEach(s=>all.push(parseFloat(s.replace(/,/g,'')))));
+  if(all.length)f.total=Math.max(...all);
+ }
+ m=text.match(/(?:\bP\.?O\.?|purchase\s*order)\s*(?:no\b|number|num\b|#)?\.?\s*[:\-#]?\s*(?!date\b)([A-Z0-9][A-Z0-9\/\-]{1,24})/i);
+ if(m&&/\d/.test(m[1]))f.poNo=m[1];
+
+ /* dates */
+ const dateOn=(labelRe,exclRe)=>{
+  for(let i=0;i<lines.length;i++){
+   const l=lines[i]; if(!labelRe.test(l)||(exclRe&&exclRe.test(l)))continue;
+   const d=findDate(l.replace(labelRe,' '))||findDate(lines[i+1]||'');
+   if(d)return d;
+  }
+  return '';
+ };
+ f.poDate=dateOn(/(?:\bpo\b|purchase\s*order)\s*date/i)||null;
+ f.dueDate=dateOn(/due\s*date|payment\s*due|pay\s*by|due\s*on/i)||null;
+ f.invoiceDate=dateOn(/invoice\s*date|inv\.?\s*date|date\s*of\s*invoice|bill\s*date|\bdated?\b/i,/\bpo\b|purchase|due/i)||null;
+ if(!f.invoiceDate){
+  for(const l of lines){ if(/\bpo\b|purchase|due/i.test(l))continue; const d=findDate(l); if(d){f.invoiceDate=d;break} }
+ }
+
+ /* currency */
+ if(/₹|\bRs\.?\b|\bINR\b/i.test(text))f.currency='INR';
+ else if(/\$|\bUSD\b/.test(text))f.currency='USD';
+ else if(/€|\bEUR\b/.test(text))f.currency='EUR';
+ else if(/£|\bGBP\b/.test(text))f.currency='GBP';
+ else if(gl.length)f.currency='INR';
+ return f;
+}
+
+/* ---------- validation (FR-9, FR-12, FR-13) ---------- */
+function validate(rec){
+ const f=rec.fields,iss=[],add=(k,m)=>iss.push({k,m});
+ REQUIRED.forEach(k=>{if(empty(f[k]))add(k,'Missing or unreadable')});
+ FIELDS.forEach(([k,,t])=>{
+  const v=f[k]; if(empty(v))return;
+  if(t==='g'&&!GSTIN_RX.test(String(v).toUpperCase()))add(k,'Invalid GSTIN format');
+  if(t==='d'&&!dmyToISO(v))add(k,'Use DD/MM/YYYY');
+ });
+ const n=k=>empty(f[k])?0:+f[k];
+ const sum=n('cgst')+n('sgst')+n('igst')+n('cess');
+ if(!empty(f.tax)&&sum>0&&Math.abs(f.tax-sum)>1)add('tax','Tax ≠ CGST+SGST+IGST+Cess');
+ if(!empty(f.cgst)&&!empty(f.sgst)&&Math.abs(f.cgst-f.sgst)>1)add('sgst','CGST and SGST differ');
+ if(n('igst')>0&&(n('cgst')>0||n('sgst')>0))add('igst','IGST with CGST/SGST');
+ if(!empty(f.total)&&!empty(f.tax)&&!empty(f.gstRate)&&f.gstRate>0){
+  const taxable=f.total-f.tax,exp=taxable*f.gstRate/100;
+  if(taxable<=0)add('total','Total is not greater than tax');
+  else if(Math.abs(exp-f.tax)>Math.max(1,f.tax*0.01))add('gstRate','Tax does not match rate × taxable');
+ }
+ if(!empty(f.invoiceNo)){
+  const norm=v=>String(v||'').trim().toLowerCase();
+  const key=norm(f.invoiceNo);
+  // a duplicate = same invoice no. + same vendor (GSTIN, else name) on an EARLIER record,
+  // so the first copy stays clean and only later copies are flagged
+  const dup=S.invs.some(o=>{
+   if(o.id===rec.id||!o.fields||norm(o.fields.invoiceNo)!==key)return false;
+   const sameVendor=!empty(f.vendorGstin)?o.fields.vendorGstin===f.vendorGstin
+     :(!empty(f.vendorName)&&o.fields.vendorName===f.vendorName);
+   const earlier=o.created<rec.created||(o.created===rec.created&&o.id<rec.id);
+   return sameVendor&&earlier;
+  });
+  if(dup)add('invoiceNo','Duplicate invoice number for this vendor');
+ }
+ if(rec.conf!=null&&rec.conf<60)add('_conf','Low OCR confidence ('+Math.round(rec.conf)+'%) — verify against image');
+ return iss;
+}
+function revalidateAll(){
+ S.invs.forEach(r=>{
+  if(r.status==='Pending'||!r.fields)return;
+  r.issues=validate(r);
+  if(r.status==='Completed'&&r.issues.length)r.status='Error';
+  else if(r.status==='Error'&&!r.issues.length)r.status='Completed';
+ });
+}
+
+/* ---------- image / PDF intake (FR-3/4/5) ---------- */
+async function shrink(file,max=2000){
+ try{
+  const bmp=await createImageBitmap(file);
+  const sc=Math.min(1,max/Math.max(bmp.width,bmp.height));
+  const c=document.createElement('canvas');c.width=Math.round(bmp.width*sc);c.height=Math.round(bmp.height*sc);
+  const cx=c.getContext('2d');cx.filter='grayscale(1) contrast(1.25)';cx.drawImage(bmp,0,0,c.width,c.height);
+  return await new Promise(r=>c.toBlob(r,'image/jpeg',.88));
+ }catch(_){return file}
+}
+async function addFiles(fileList){
+ const files=[...fileList]; if(!files.length)return;
+ let ok=0,bad=0;
+ for(const file of files){
+  const isPdf=file.type==='application/pdf'||/\.pdf$/i.test(file.name);
+  const isImg=/^image\/(jpeg|png)$/.test(file.type)||(file.type.startsWith('image/')&&!/svg|gif/.test(file.type));
+  if(!isPdf&&!isImg){bad++;continue}
+  const rec={id:uid(),name:file.name||'scan.jpg',kind:isPdf?'pdf':'img',status:'Pending',created:Date.now(),
+   src:isPdf?file:await shrink(file),fields:null,issues:[],text:'',conf:null,procMs:null};
+  S.invs.push(rec);await DB.put('inv',rec);S.queue.push(rec.id);ok++;
+  if(ok%25===0){S.total+=25;refresh();await sleep(0)}
+ }
+ S.total+=ok%25;
+ await log('Upload',`${ok} file(s) added${bad?`, ${bad} rejected (unsupported type)`:''}`);
+ toast(bad?`${ok} added, ${bad} unsupported skipped`:`${ok} invoice${ok===1?'':'s'} added`);
+ refresh(); runQueue();
+}
+
+/* ---------- OCR queue (FR-6) ---------- */
+async function getWorker(){
+ if(worker)return worker;
+ if(!window.Tesseract)throw new Error('OCR engine could not be loaded (check your internet connection).');
+ S.msg='Loading OCR engine (first run only)…';refresh();
+ worker=await Tesseract.createWorker('eng');
+ return worker;
+}
+async function renderPdf(blob){
+ if(!window.pdfjsLib)throw new Error('PDF reader could not be loaded.');
+ pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+ const doc=await pdfjsLib.getDocument({data:await blob.arrayBuffer()}).promise;
+ const canvases=[];let text='';
+ for(let p=1;p<=Math.min(doc.numPages,3);p++){
+  const pg=await doc.getPage(p),vp=pg.getViewport({scale:2});
+  const c=document.createElement('canvas');c.width=vp.width;c.height=vp.height;
+  await pg.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;canvases.push(c);
+  try{ // embedded text layer: rebuild lines from item positions
+   const tc=await pg.getTextContent(),rows=[];
+   tc.items.forEach(it=>{
+    if(!it.str||!it.str.trim())return;
+    const y=Math.round(it.transform[5]/4),x=it.transform[4];
+    let row=rows.find(r=>Math.abs(r.y-y)<=1);
+    if(!row){row={y,items:[]};rows.push(row)}
+    row.items.push({x,s:it.str});
+   });
+   rows.sort((a,b)=>b.y-a.y);
+   text+=rows.map(r=>r.items.sort((a,b)=>a.x-b.x).map(i=>i.s.trim()).join('  ')).join('\n')+'\n';
+  }catch(_){}
+ }
+ return {canvases,text};
+}
+async function processOne(rec){
+ const t0=performance.now();
+ try{
+  let inputs,layer='';
+  if(rec.kind==='pdf'){
+   const pr=await renderPdf(rec.src);inputs=pr.canvases;layer=pr.text;
+   rec.img=await new Promise(r=>inputs[0].toBlob(r,'image/jpeg',.8));
+  }else{inputs=[rec.src];rec.img=rec.src}
+  let text='',conf=0;
+  const hasLayer=layer.replace(/\s/g,'').length>60;
+  if(hasLayer){text=layer;conf=100;rec.fields=parseInvoice(text)}
+  // OCR when there is no text layer (scans/photos), or the text layer gave nothing useful
+  if(!hasLayer||(empty(rec.fields.total)&&empty(rec.fields.invoiceNo))){
+   const w=await getWorker();let c=0;
+   for(const inp of inputs){const r=await w.recognize(inp);text+='\n'+r.data.text;c+=r.data.confidence}
+   conf=hasLayer?100:c/inputs.length;
+   rec.fields=parseInvoice(text);
+  }
+  rec.text=text;rec.conf=conf;
+  rec.procMs=performance.now()-t0;
+  rec.issues=validate(rec);
+  rec.status=rec.issues.length?'Error':'Completed';
+ }catch(e){
+  rec.fields=rec.fields||Object.fromEntries(FIELDS.map(x=>[x[0],null]));
+  rec.issues=[{k:'_err',m:String(e.message||e)}];rec.status='Error';rec.procMs=performance.now()-t0;
+ }
+ await DB.put('inv',rec);
+}
+async function runQueue(){
+ if(S.busy)return; S.busy=true;
+ while(S.queue.length){
+  const rec=S.invs.find(r=>r.id===S.queue[0]);
+  S.queue.shift();
+  if(!rec||rec.status!=='Pending')continue;
+  S.msg=`Reading ${rec.name}…`;refresh();
+  await processOne(rec);S.done++;refresh();await sleep(0);
+ }
+ revalidateAll();
+ for(const r of S.invs)await DB.put('inv',r);
+ const n=S.done;S.busy=false;S.done=0;S.total=0;S.msg='';
+ if(n)await log('Extraction',`${n} invoice(s) processed`);
+ refresh();
+}
+
+/* ---------- demo invoice (runs the real parser on sample text) ---------- */
+const DEMO=`ABC Pvt Ltd
+TAX INVOICE
+GSTIN: 27ABCDE1234F1Z5
+Invoice No: INV/1234
+Invoice Date: 01-11-2025
+PO No: PO-789
+PO Date: 25.10.2025
+Bill To: XYZ Ltd
+GSTIN: 29XYZPK1234L1Z8
+Description            Amount
+Consulting services    45,000.00
+Taxable Value          45,000.00
+CGST @9%               4,050.00
+SGST @9%               4,050.00
+IGST                   0.00
+Cess                   0.00
+Grand Total  ₹         53,100.00
+Due Date: 30/11/2025`;
+async function addDemo(){
+ const rec={id:uid(),name:'demo-invoice.txt',kind:'img',status:'Pending',created:Date.now(),src:null,img:null,text:DEMO,conf:99,procMs:12};
+ S.invs.push(rec);
+ rec.fields=parseInvoice(DEMO);rec.issues=validate(rec);rec.status=rec.issues.length?'Error':'Completed';
+ await DB.put('inv',rec);await log('Upload','Demo invoice added');
+ toast(rec.issues.length?'Demo added (duplicate flagged)':'Demo invoice extracted');
+ refresh();
+}
+
+/* ---------- filtering / export (FR-16/18) ---------- */
+function filtered(){
+ const q=S.q.trim().toLowerCase();
+ return S.invs.filter(r=>{
+  if(S.status!=='All'&&r.status!==S.status)return false;
+  if(S.vendor&&(r.fields&&r.fields.vendorName)!==S.vendor)return false;
+  const iso=r.fields&&dmyToISO(r.fields.invoiceDate);
+  if(S.from&&(!iso||iso<S.from))return false;
+  if(S.to&&(!iso||iso>S.to))return false;
+  if(q){const hay=[r.name,r.status,...Object.values(r.fields||{})].join(' ').toLowerCase();if(!hay.includes(q))return false}
+  return true;
+ }).sort((a,b)=>b.created-a.created);
+}
+function rowFor(r){
+ return FIELDS.map(([k,,t])=>{
+  const v=r.fields[k]; if(empty(v))return '';
+  if(t==='r')return v+'%';
+  if(t==='n')return +v;
+  return v;
+ });
+}
+function download(blob,name){
+ const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;
+ document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500);
+}
+const stamp=()=>new Date().toISOString().slice(0,10).replace(/-/g,'');
+async function exportXlsx(){
+ const rows=filtered().filter(r=>r.fields);
+ if(!rows.length)return toast('Nothing to export');
+ if(!window.XLSX)return toast('Excel library not loaded (offline?)');
+ const ws=XLSX.utils.aoa_to_sheet([FIELDS.map(f=>f[1]),...rows.map(rowFor)]);
+ ws['!cols']=FIELDS.map(f=>({wch:Math.max(12,f[1].length+2)}));
+ const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Invoices');
+ const out=XLSX.write(wb,{bookType:'xlsx',type:'array'});
+ download(new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),`invoices_${stamp()}.xlsx`);
+ await log('Export',`${rows.length} invoice(s) exported to Excel`);toast(`Exported ${rows.length} invoices`);refresh();
+}
+function monthly(){
+ const m={};
+ S.invs.forEach(r=>{
+  if(!r.fields||r.status==='Pending')return;
+  const d=r.fields.invoiceDate||'',ym=/^\d\d\/(\d\d)\/(\d{4})$/.exec(d);
+  const key=(r.fields.vendorName||'(unknown)')+'|'+(ym?`${ym[2]}-${ym[1]}`:'(no date)');
+  const o=m[key]||(m[key]={vendor:r.fields.vendorName||'(unknown)',month:ym?`${ym[1]}/${ym[2]}`:'(no date)',n:0,total:0,tax:0});
+  o.n++;o.total+=+r.fields.total||0;o.tax+=+r.fields.tax||0;
+ });
+ return Object.values(m).sort((a,b)=>a.vendor.localeCompare(b.vendor)||a.month.localeCompare(b.month));
+}
+async function exportSummary(){
+ const d=monthly();if(!d.length)return toast('No processed invoices yet');
+ const ws=XLSX.utils.aoa_to_sheet([['Vendor','Month','Invoices','Total Amount','Tax Amount'],...d.map(o=>[o.vendor,o.month,o.n,+o.total.toFixed(2),+o.tax.toFixed(2)])]);
+ const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Vendor x Month');
+ download(new Blob([XLSX.write(wb,{bookType:'xlsx',type:'array'})],{type:'application/octet-stream'}),`summary_${stamp()}.xlsx`);
+ await log('Export','Vendor/month summary exported');refresh();
+}
+function exportLogs(){
+ const csv=['Timestamp,Action,Detail',...S.logs.map(l=>[l.ts,l.action,l.detail].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(','))].join('\n');
+ download(new Blob([csv],{type:'text/csv'}),`audit_log_${stamp()}.csv`);
+ log('Export','Audit log downloaded');
+}
+
+/* ---------- views ---------- */
+function stats(){
+ const c={Pending:0,Completed:0,Error:0,Reviewed:0};S.invs.forEach(r=>c[r.status]++);
+ const done=S.invs.filter(r=>r.procMs!=null);
+ const avg=done.length?done.reduce((a,r)=>a+r.procMs,0)/done.length/1000:null;
+ const fin=c.Completed+c.Reviewed+c.Error;
+ return {c,total:S.invs.length,avg,rate:fin?Math.round((c.Completed+c.Reviewed)/fin*100):null};
+}
+const banner=()=>S.busy||S.queue.length?`<div class="banner" id="banner"><b>Processing ${S.done} / ${S.total}</b><div class="small">${esc(S.msg)}</div><div class="bar"><i style="width:${S.total?S.done/S.total*100:0}%"></i></div></div>`:'';
+const card=r=>{
+ const f=r.fields||{};
+ return `<div class="inv" data-act="open" data-id="${r.id}">
+  <div class="thumb" data-thumb="${r.id}"></div>
+  <div class="mid"><b>${esc(f.vendorName||r.name)}</b><span>${esc(f.invoiceNo||'—')} · ${esc(f.invoiceDate||'no date')}</span>
+   ${r.issues&&r.issues.length?`<span style="color:var(--err)"> · ${r.issues.length} to check</span>`:''}</div>
+  <div class="end"><b>${f.currency&&f.currency!=='INR'?esc(f.currency)+' ':'₹'}${money(f.total)}</b><span class="pill ${r.status}">${r.status}</span></div></div>`;
+};
+function viewHome(){
+ const s=stats();
+ return `${banner()}
+ <button class="btn primary" data-act="tab" data-t="scan">${ico('scan',20)} Scan or upload invoices</button>
+ <h2>Status</h2>
+ <div class="grid2">
+  <button class="stat warn" data-act="flt" data-s="Pending"><b>${s.c.Pending}</b><span>Pending</span></button>
+  <button class="stat ok" data-act="flt" data-s="Completed"><b>${s.c.Completed}</b><span>Completed</span></button>
+  <button class="stat err" data-act="flt" data-s="Error"><b>${s.c.Error}</b><span>Needs attention</span></button>
+  <button class="stat info" data-act="flt" data-s="Reviewed"><b>${s.c.Reviewed}</b><span>Reviewed</span></button>
+ </div>
+ <h2>Performance</h2>
+ <div class="card"><div class="row" style="justify-content:space-between">
+  <div><b style="font-size:22px">${s.total}</b><div class="small muted">Total invoices</div></div>
+  <div><b style="font-size:22px">${s.avg==null?'—':s.avg.toFixed(1)+'s'}</b><div class="small muted">Avg time / invoice</div></div>
+  <div><b style="font-size:22px">${s.rate==null?'—':s.rate+'%'}</b><div class="small muted">Success rate</div></div></div></div>
+ <h2>Recent</h2>
+ ${S.invs.length?[...S.invs].sort((a,b)=>b.created-a.created).slice(0,5).map(card).join(''):`<div class="empty">No invoices yet.<br>Scan one to get started.</div>`}`;
+}
+function viewScan(){
+ return `${banner()}
+ <button class="scanbtn" data-act="cam"><div class="ic">${ico('cam')}</div><div><b>Take a photo</b><span>Use the camera. Repeat for each invoice.</span></div></button>
+ <button class="scanbtn" data-act="pick"><div class="ic">${ico('up')}</div><div><b>Upload images or PDFs</b><span>JPEG, PNG or PDF. Select many at once for bulk upload.</span></div></button>
+ <button class="scanbtn" data-act="demo"><div class="ic" style="background:var(--accent)">${ico('list')}</div><div><b>Try a demo invoice</b><span>Runs the extractor on a sample, no camera needed.</span></div></button>
+ <div class="card small muted">Everything stays on this device. Text is read on-device with OCR, then checked: required fields, GSTIN format, tax maths, date format and duplicate invoice numbers. Anything unclear is flagged for you to correct.</div>`;
+}
+function viewInvoices(){
+ const vendors=[...new Set(S.invs.map(r=>r.fields&&r.fields.vendorName).filter(Boolean))].sort();
+ return `${banner()}
+ <input id="q" type="search" placeholder="Search any field (GSTIN, PO, vendor…)" value="${esc(S.q)}">
+ <div class="chips">${['All',...STATUSES].map(s=>`<button class="chip ${S.status===s?'on':''}" data-act="flt" data-s="${s}">${s}</button>`).join('')}</div>
+ <div class="grid2"><div class="f"><label>From (invoice date)</label><input type="date" id="from" value="${S.from}"></div>
+  <div class="f"><label>To</label><input type="date" id="to" value="${S.to}"></div></div>
+ <div class="f"><label>Vendor</label><select id="vendor"><option value="">All vendors</option>${vendors.map(v=>`<option ${S.vendor===v?'selected':''}>${esc(v)}</option>`).join('')}</select></div>
+ <div class="row" style="justify-content:space-between;margin:6px 0 10px"><span class="muted small" id="count"></span>
+  <button class="btn primary sm" data-act="export">${ico('dl',16)} Export Excel</button></div>
+ <div id="list"></div>`;
+}
+function viewReports(){
+ const d=monthly(),recent=[...S.logs].reverse().slice(0,15);
+ return `<h2>Totals by vendor &amp; month</h2>
+ <div class="card">${d.length?`<table><tr><th>Vendor</th><th>Month</th><th class="n">Inv.</th><th class="n">Total ₹</th></tr>
+  ${d.map(o=>`<tr><td>${esc(o.vendor)}</td><td>${o.month}</td><td class="n">${o.n}</td><td class="n">${money(o.total)}</td></tr>`).join('')}</table>
+  <div style="margin-top:12px"><button class="btn ghost sm" data-act="sumx">${ico('dl',16)} Download summary</button></div>`:'<div class="empty">Nothing to report yet.</div>'}</div>
+ <h2>Audit log</h2>
+ <div class="card">${recent.length?recent.map(l=>`<div class="small" style="padding:4px 0;border-bottom:1px solid var(--line)"><b>${esc(l.action)}</b> · ${esc(l.detail)}<div class="muted">${new Date(l.ts).toLocaleString()}</div></div>`).join(''):'<div class="empty">No activity yet.</div>'}
+  <div style="margin-top:12px"><button class="btn ghost sm" data-act="logx">${ico('dl',16)} Download full log (CSV)</button></div></div>
+ <h2>Data</h2>
+ <button class="btn danger" data-act="wipe">Delete all invoices and logs</button>`;
+}
+function renderList(){
+ const el=$('#list');if(!el)return;
+ const rows=filtered();
+ $('#count').textContent=`${rows.length} of ${S.invs.length} invoices`;
+ el.innerHTML=rows.length?rows.map(card).join(''):'<div class="empty">No invoices match.</div>';
+ hydrateThumbs();
+}
+const thumbURLs={};
+function hydrateThumbs(){
+ document.querySelectorAll('[data-thumb]').forEach(el=>{
+  const r=S.invs.find(x=>x.id===el.dataset.thumb);if(!r||!r.img)return;
+  const u=thumbURLs[r.id]||(thumbURLs[r.id]=URL.createObjectURL(r.img));
+  el.style.backgroundImage=`url(${u})`;
+ });
+}
+function render(){
+ const titles={home:['InvoiceScan','Bulk invoice extraction'],scan:['Scan','Add invoices'],invoices:['Invoices','Search, review, export'],reports:['Reports','Summaries &amp; audit']};
+ const v={home:viewHome,scan:viewScan,invoices:viewInvoices,reports:viewReports}[S.tab]();
+ $('#app').innerHTML=`<header class="top"><h1>${titles[S.tab][0]}<small>${titles[S.tab][1]}</small></h1>
+  <button class="iconbtn" data-act="theme" aria-label="Toggle dark mode">${ico('moon',18)}</button></header>${v}`;
+ $('#tabs').innerHTML=[['home','Home','home'],['scan','Scan','scan'],['invoices','Invoices','list'],['reports','Reports','chart']]
+  .map(([t,l,i])=>`<button class="${S.tab===t?'on':''}" data-act="tab" data-t="${t}">${ico(i)}${l}</button>`).join('');
+ if(S.tab==='invoices')renderList();else hydrateThumbs();
+}
+function refresh(){
+ if(S.tab==='invoices'&&document.activeElement&&/INPUT|SELECT/.test(document.activeElement.tagName)){
+  renderList();const b=$('#banner');if(b)b.outerHTML=banner();return;
+ }
+ render();
+}
+
+/* ---------- review / correction sheet (FR-9) ---------- */
+let sheetUrl=null;
+function openSheet(id){
+ const r=S.invs.find(x=>x.id===id);if(!r)return;S.sheetId=id;
+ const bad=Object.fromEntries((r.issues||[]).map(i=>[i.k,i.m]));
+ const gen=(r.issues||[]).filter(i=>i.k==='_conf'||i.k==='_err');
+ if(sheetUrl)URL.revokeObjectURL(sheetUrl);
+ sheetUrl=r.img?URL.createObjectURL(r.img):null;
+ const body=!r.fields?`<div class="banner">Still waiting in the queue…</div>`:`
+  ${sheetUrl?`<img class="preview" id="pv" src="${sheetUrl}" alt="Invoice image">`:''}
+  ${(r.issues||[]).length?`<div class="issues"><b>${r.issues.length} item${r.issues.length>1?'s':''} to check</b><ul>${r.issues.map(i=>`<li>${i.k.startsWith('_')?'':esc((FIELDS.find(f=>f[0]===i.k)||[])[1])+': '}${esc(i.m)}</li>`).join('')}</ul></div>`:`<div class="banner" style="background:var(--ok-bg);color:var(--ok);margin-top:12px">All checks passed.</div>`}
+  ${FIELDS.map(([k,l,t])=>{
+   const v=r.fields[k];
+   const val=t==='r'&&!empty(v)?v+'%':empty(v)?'':v;
+   return `<div class="f ${bad[k]?'bad':''}"><label>${l}${REQUIRED.includes(k)?' *':''}</label>
+    <input data-k="${k}" data-t="${t}" value="${esc(val)}" ${t==='n'||t==='r'?'inputmode="decimal"':''} ${t==='g'?'autocapitalize="characters"':''} placeholder="${t==='d'?'DD/MM/YYYY':''}">
+    ${bad[k]?`<div class="why">${esc(bad[k])}</div>`:''}</div>`}).join('')}
+  <details><summary>Raw OCR text</summary><pre>${esc(r.text||'')}</pre></details>`;
+ $('#sheet .panel').innerHTML=`<div class="head"><div><b>${esc((r.fields&&r.fields.invoiceNo)||r.name)}</b> <span class="pill ${r.status}">${r.status}</span></div>
+  <button class="iconbtn" data-act="close" aria-label="Close">${ico('x',18)}</button></div>
+  <div class="body">${body}</div>
+  ${r.fields?`<div class="foot"><button class="btn primary" data-act="save">Save &amp; re-check</button>
+   <button class="btn ghost" data-act="approve">Mark reviewed</button>
+   ${r.src?`<button class="btn ghost full" data-act="redo">Re-extract from file</button>`:''}
+   <button class="btn danger full" data-act="del">Delete invoice</button></div>`:''}`;
+ $('#sheet').classList.add('open');
+}
+function closeSheet(){$('#sheet').classList.remove('open');S.sheetId=null;if(sheetUrl){URL.revokeObjectURL(sheetUrl);sheetUrl=null}}
+function readSheet(r){
+ document.querySelectorAll('#sheet [data-k]').forEach(el=>{
+  const k=el.dataset.k,t=el.dataset.t;let v=el.value.trim();
+  if(v===''){r.fields[k]=null;return}
+  if(t==='n'||t==='r'){const n=parseFloat(v.replace(/[,%₹\s]/g,''));r.fields[k]=isNaN(n)?v:n}
+  else if(t==='g')r.fields[k]=v.toUpperCase().replace(/\s/g,'');
+  else if(t==='c')r.fields[k]=v.toUpperCase();
+  else if(t==='d')r.fields[k]=findDate(v)||v;
+  else r.fields[k]=v;
+ });
+ const sum=['cgst','sgst','igst','cess'].map(k=>r.fields[k]).filter(v=>typeof v==='number');
+ if(empty(r.fields.tax)&&sum.length)r.fields.tax=+sum.reduce((a,b)=>a+b,0).toFixed(2);
+}
+async function saveSheet(force){
+ const r=S.invs.find(x=>x.id===S.sheetId);if(!r)return;
+ readSheet(r);r.issues=validate(r);
+ r.status=(force||!r.issues.length)?'Reviewed':'Error';
+ await DB.put('inv',r);
+ revalidateAll();for(const o of S.invs)await DB.put('inv',o);
+ await log('Review',`${r.fields.invoiceNo||r.name} ${r.status==='Reviewed'?'marked reviewed':'saved with '+r.issues.length+' open issue(s)'}`);
+ toast(r.status==='Reviewed'?'Saved — Reviewed':`Saved — ${r.issues.length} still to check`);
+ closeSheet();refresh();
+}
+
+/* in-app confirm dialog (window.confirm is blocked in many WebViews) */
+function ask(msg){
+ return new Promise(res=>{
+  const o=document.createElement('div');
+  o.style.cssText='position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.5);display:grid;place-items:center;padding:24px';
+  o.innerHTML=`<div style="background:var(--surface);color:var(--ink);border-radius:16px;padding:20px;max-width:340px;width:100%">
+   <p style="margin:0 0 16px">${esc(msg)}</p>
+   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+   <button class="btn ghost" id="askNo">Cancel</button><button class="btn danger" id="askYes">Delete</button></div></div>`;
+  document.body.appendChild(o);
+  const done=v=>{o.remove();res(v)};
+  o.querySelector('#askNo').onclick=()=>done(false);
+  o.querySelector('#askYes').onclick=()=>done(true);
+ });
+}
+
+/* ---------- events ---------- */
+document.addEventListener('click',async e=>{
+ const el=e.target.closest('[data-act]');
+ if(!el){ if(e.target.id==='pv')e.target.classList.toggle('big'); if(e.target.id==='sheet')closeSheet(); return }
+ const a=el.dataset.act;
+ if(a==='tab'){S.tab=el.dataset.t;render();scrollTo(0,0)}
+ else if(a==='flt'){S.status=el.dataset.s;S.tab='invoices';render()}
+ else if(a==='cam')$('#fCam').click();
+ else if(a==='pick')$('#fPick').click();
+ else if(a==='demo')addDemo();
+ else if(a==='open')openSheet(el.dataset.id);
+ else if(a==='close')closeSheet();
+ else if(a==='save')saveSheet(false);
+ else if(a==='approve')saveSheet(true);
+ else if(a==='redo'){
+  const r=S.invs.find(x=>x.id===S.sheetId);if(!r||!r.src)return;
+  r.status='Pending';r.fields=null;r.issues=[];S.queue.push(r.id);S.total++;
+  await DB.put('inv',r);await log('Re-extract',r.name);closeSheet();refresh();runQueue();
+ }
+ else if(a==='del'){
+  if(!await ask('Delete this invoice permanently?'))return;
+  const i=S.invs.findIndex(x=>x.id===S.sheetId);if(i<0)return;
+  const [r]=S.invs.splice(i,1);await DB.tx('inv','readwrite',s=>s.delete(r.id));
+  await log('Delete',(r.fields&&r.fields.invoiceNo)||r.name);revalidateAll();closeSheet();refresh();toast('Deleted');
+ }
+ else if(a==='export')exportXlsx();
+ else if(a==='sumx')exportSummary();
+ else if(a==='logx')exportLogs();
+ else if(a==='theme'){
+  const d=document.documentElement,cur=d.dataset.theme||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');
+  d.dataset.theme=cur==='dark'?'light':'dark';try{localStorage.setItem('theme',d.dataset.theme)}catch(_){}
+ }
+ else if(a==='wipe'){
+  if(!await ask('Delete ALL invoices and logs from this device? This cannot be undone.'))return;
+  await DB.clear('inv');await DB.clear('log');S.invs=[];S.logs=[];S.queue=[];render();toast('All data deleted');
+ }
+});
+document.addEventListener('input',e=>{
+ const id=e.target.id;
+ if(id==='q'){S.q=e.target.value;renderList()}
+});
+document.addEventListener('change',e=>{
+ const id=e.target.id;
+ if(id==='from'){S.from=e.target.value;renderList()}
+ else if(id==='to'){S.to=e.target.value;renderList()}
+ else if(id==='vendor'){S.vendor=e.target.value;renderList()}
+});
+['fCam','fPick'].forEach(id=>$('#'+id).addEventListener('change',e=>{addFiles(e.target.files);e.target.value=''}));
+
+/* ---------- boot ---------- */
+(async()=>{
+ try{const t=localStorage.getItem('theme');if(t)document.documentElement.dataset.theme=t}catch(_){}
+ try{
+  await DB.open();
+  S.invs=(await DB.all('inv'));S.logs=(await DB.all('log'));
+  S.invs.forEach(r=>{if(r.status==='Pending'&&!r.fields){S.queue.push(r.id);S.total++}});
+ }catch(e){toast('Storage unavailable — data will not be saved')}
+ render();
+ if(S.queue.length)runQueue();
+})();
+</script>
+</body>
+</html>
