@@ -141,7 +141,8 @@ const FIELDS=[
  ['tax','Tax Amount','n'],['currency','Invoice Currency','c'],['cgst','CGST','n'],
  ['sgst','SGST','n'],['igst','IGST','n'],['cess','Cess','n'],['dueDate','Terms / Due Date','d']
 ];
-const REQUIRED=['vendorName','vendorGstin','invoiceNo','invoiceDate','total'];
+// Vendor GSTIN is not required: foreign/export invoices have none (still format-checked when present)
+const REQUIRED=['vendorName','invoiceNo','invoiceDate','total'];
 const STATUSES=['Pending','Completed','Error','Reviewed'];
 const GSTIN_RX=/^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
 const GSTIN_FIND=/\b\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]\b/g;
@@ -207,6 +208,11 @@ function findDate(str){
  if(m&&MON[m[2].slice(0,3).toLowerCase()]){const r=mkDate(m[1],MON[m[2].slice(0,3).toLowerCase()],m[3]);if(r)return r}
  return '';
 }
+const addDays=(dmy,n)=>{
+ const m=/^(\d{2})\/(\d{2})\/(\d{4})$/.exec(dmy||'');if(!m||!n)return null;
+ const d=new Date(+m[3],+m[2]-1,+m[1]+Number(n));
+ return `${p2(d.getDate())}/${p2(d.getMonth()+1)}/${d.getFullYear()}`;
+};
 const dmyToISO=s=>{const m=/^(\d{2})\/(\d{2})\/(\d{4})$/.exec(s||'');return m?`${m[3]}-${m[2]}-${m[1]}`:''};
 
 /* ---------- parser: OCR text -> fields (FR-6/7/8) ---------- */
@@ -313,15 +319,20 @@ function parseInvoice(text){
  };
  f.poDate=dateOn(/(?:\bpo\b|purchase\s*order)\s*date/i)||null;
  f.dueDate=dateOn(/due\s*date|payment\s*due|pay\s*by|due\s*on/i)||null;
- f.invoiceDate=dateOn(/invoice\s*date|inv\.?\s*date|date\s*of\s*invoice|bill\s*date|\bdated?\b/i,/\bpo\b|purchase|due/i)||null;
+ f.invoiceDate=dateOn(/invoice\s*date|inv\.?\s*date|date\s*of\s*invoice|bill\s*date|inv(?:oice)?\.?\s*dt\b\.?|\bdated?\b/i,/\bpo\b|purchase|due/i)||null;
  if(!f.invoiceDate){
   for(const l of lines){ if(/\bpo\b|purchase|due/i.test(l))continue; const d=findDate(l); if(d){f.invoiceDate=d;break} }
+ }
+
+ if(!f.dueDate&&f.invoiceDate){ // "Terms: 90 days" -> due date
+  const tm=text.match(/\b(\d{1,3})\s*days?\b/i);
+  if(tm)f.dueDate=addDays(f.invoiceDate,tm[1]);
  }
 
  /* currency */
  if(/₹|\bRs\.?\b|\bINR\b/i.test(text))f.currency='INR';
  else if(/\$|\bUSD\b/.test(text))f.currency='USD';
- else if(/€|\bEUR\b/.test(text))f.currency='EUR';
+ else if(/€|\bEURO?\b/i.test(text))f.currency='EUR';
  else if(/£|\bGBP\b/.test(text))f.currency='GBP';
  else if(gl.length)f.currency='INR';
  return f;
@@ -432,6 +443,57 @@ async function renderPdf(blob){
  }
  return {canvases,text};
 }
+/* OCR that also tries the image rotated when the first read is poor (sideways photos) */
+async function rotated(src,deg){
+ const b=await createImageBitmap(src),c=document.createElement('canvas'),turn=deg%180!==0;
+ c.width=turn?b.height:b.width;c.height=turn?b.width:b.height;
+ const x=c.getContext('2d');x.translate(c.width/2,c.height/2);x.rotate(deg*Math.PI/180);x.drawImage(b,-b.width/2,-b.height/2);
+ return c;
+}
+async function ocrBest(w,inp){
+ let best=await w.recognize(inp);
+ if(best.data.confidence<55){
+  for(const deg of [90,270,180]){
+   try{const r=await w.recognize(await rotated(inp,deg));if(r.data.confidence>best.data.confidence)best=r}catch(_){}
+   if(best.data.confidence>=70)break;
+  }
+ }
+ return best;
+}
+
+/* ---------- optional AI reading (Anthropic API; sends the invoice to Anthropic) ---------- */
+function getAI(){try{return{key:localStorage.getItem('aiKey')||'',on:localStorage.getItem('aiOn')==='1'}}catch(_){return{key:'',on:false}}}
+const AI_PROMPT=`You are reading an invoice (Indian GST invoice or a foreign/export invoice). It may be a scan, a photo, rotated, handwritten, or a photo of a computer screen. Return ONLY a JSON object with exactly these keys: vendorName, vendorGstin, supplierName, supplierGstin, consigneeName, consigneeGstin, gstRate, invoiceNo, invoiceDate, poNo, poDate, total, tax, currency, cgst, sgst, igst, cess, dueDate, paymentTermsDays. Rules: dates as DD/MM/YYYY; amounts as plain numbers with no commas or currency symbols; gstRate as a number such as 18; currency as an ISO code (INR for rupees, EUR for euro); GSTINs uppercase, 15 characters; total is the final invoice value; use null for anything not present or not readable. Never guess. Vendor and supplier are the seller who issued the invoice; the consignee is the buyer or ship-to party. For foreign or export invoices GSTINs, GST and tax are null and currency is the printed one. Ignore handwritten notes and stamps unless they are the only source of a value. If payment terms are a number of days (for example "90 days"), put that number in paymentTermsDays and leave dueDate null unless a date is printed.`;
+const blobB64=b=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(',')[1]);r.onerror=rej;r.readAsDataURL(b)});
+async function aiExtract(rec,key){
+ const data=await blobB64(rec.src);
+ const block=rec.kind==='pdf'
+  ?{type:'document',source:{type:'base64',media_type:'application/pdf',data}}
+  :{type:'image',source:{type:'base64',media_type:rec.src.type||'image/jpeg',data}};
+ const resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+  headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+  body:JSON.stringify({model:'claude-sonnet-5-5',max_tokens:1500,messages:[{role:'user',content:[block,{type:'text',text:AI_PROMPT}]}]})});
+ if(!resp.ok){let m='';try{m=(await resp.json()).error.message}catch(_){}throw new Error(`AI request failed (${resp.status}) ${m}`)}
+ const j=await resp.json(),t=(j.content||[]).map(c=>c.text||'').join('');
+ const a=t.indexOf('{'),z=t.lastIndexOf('}');if(a<0||z<a)throw new Error('AI returned no data');
+ const o=JSON.parse(t.slice(a,z+1)),f={};
+ FIELDS.forEach(([k,,ty])=>{
+  const v=o[k];
+  if(v==null||v===''||v==='null'){f[k]=null;return}
+  if(ty==='n'||ty==='r'){const n=parseFloat(String(v).replace(/[,%₹\s]|Rs\.?/gi,''));f[k]=isNaN(n)?null:n}
+  else if(ty==='d')f[k]=findDate(String(v))||String(v);
+  else if(ty==='g')f[k]=String(v).toUpperCase().replace(/\s/g,'');
+  else if(ty==='c')f[k]=String(v).toUpperCase().trim();
+  else f[k]=String(v).trim();
+ });
+ if(!f.dueDate&&f.invoiceDate&&Number(o.paymentTermsDays)>0)f.dueDate=addDays(f.invoiceDate,o.paymentTermsDays);
+ if(!f.supplierName)f.supplierName=f.vendorName;
+ if(!f.supplierGstin)f.supplierGstin=f.vendorGstin;
+ const parts=['cgst','sgst','igst','cess'].map(k=>f[k]).filter(v=>typeof v==='number');
+ if(f.tax==null&&parts.length)f.tax=+parts.reduce((x,y)=>x+y,0).toFixed(2);
+ return {fields:f,text:t};
+}
+
 async function processOne(rec){
  const t0=performance.now();
  try{
@@ -440,19 +502,30 @@ async function processOne(rec){
    const pr=await renderPdf(rec.src);inputs=pr.canvases;layer=pr.text;
    rec.img=await new Promise(r=>inputs[0].toBlob(r,'image/jpeg',.8));
   }else{inputs=[rec.src];rec.img=rec.src}
-  let text='',conf=0;
-  const hasLayer=layer.replace(/\s/g,'').length>60;
-  if(hasLayer){text=layer;conf=100;rec.fields=parseInvoice(text)}
-  // OCR when there is no text layer (scans/photos), or the text layer gave nothing useful
-  if(!hasLayer||(empty(rec.fields.total)&&empty(rec.fields.invoiceNo))){
-   const w=await getWorker();let c=0;
-   for(const inp of inputs){const r=await w.recognize(inp);text+='\n'+r.data.text;c+=r.data.confidence}
-   conf=hasLayer?100:c/inputs.length;
-   rec.fields=parseInvoice(text);
+  let text='',conf=0,aiErr='',viaAI=false;
+  const ai=getAI();
+  if(ai.on&&ai.key&&rec.src){ // AI reading: handles rotated, handwritten and screen-photo invoices
+   try{
+    S.msg=`AI reading ${rec.name}…`;refresh();
+    const r=await aiExtract(rec,ai.key);
+    rec.fields=r.fields;text=r.text;conf=null;viaAI=true;
+   }catch(e){aiErr=String(e.message||e)}
   }
-  rec.text=text;rec.conf=conf;
+  if(!viaAI){
+   const hasLayer=layer.replace(/\s/g,'').length>60;
+   if(hasLayer){text=layer;conf=100;rec.fields=parseInvoice(text)}
+   // OCR when there is no text layer (scans/photos), or the text layer gave nothing useful
+   if(!hasLayer||(empty(rec.fields.total)&&empty(rec.fields.invoiceNo))){
+    const w=await getWorker();let c=0;
+    for(const inp of inputs){const r=await ocrBest(w,inp);text+='\n'+r.data.text;c+=r.data.confidence}
+    conf=hasLayer?100:c/inputs.length;
+    rec.fields=parseInvoice(text);
+   }
+  }
+  rec.text=text;rec.conf=conf;rec.via=viaAI?'AI':'OCR';
   rec.procMs=performance.now()-t0;
   rec.issues=validate(rec);
+  if(aiErr)rec.issues.push({k:'_err',m:aiErr+' — used offline OCR instead'});
   rec.status=rec.issues.length?'Error':'Completed';
  }catch(e){
   rec.fields=rec.fields||Object.fromEntries(FIELDS.map(x=>[x[0],null]));
@@ -629,6 +702,12 @@ function viewReports(){
  <h2>Audit log</h2>
  <div class="card">${recent.length?recent.map(l=>`<div class="small" style="padding:4px 0;border-bottom:1px solid var(--line)"><b>${esc(l.action)}</b> · ${esc(l.detail)}<div class="muted">${new Date(l.ts).toLocaleString()}</div></div>`).join(''):'<div class="empty">No activity yet.</div>'}
   <div style="margin-top:12px"><button class="btn ghost sm" data-act="logx">${ico('dl',16)} Download full log (CSV)</button></div></div>
+ <h2>AI reading (optional)</h2>
+ <div class="card">
+  <label class="row small" style="margin-bottom:10px"><input type="checkbox" id="aiOn" style="width:auto" ${getAI().on?'checked':''}> <span>Use AI to read invoices (works on any photo, rotated or handwritten page, and any PDF)</span></label>
+  <div class="f"><label>Anthropic API key</label><input type="password" id="aiKey" autocomplete="off" placeholder="sk-ant-…" value="${esc(getAI().key)}"></div>
+  <div class="small muted">When on, each invoice image or PDF is sent over the internet to Anthropic to be read. Your key is stored unencrypted on this phone. If the AI call fails, the app falls back to offline OCR. Applies to invoices processed from now on; use "Re-extract from file" on older ones.</div>
+ </div>
  <h2>Data</h2>
  <button class="btn danger" data-act="wipe">Delete all invoices and logs</button>`;
 }
@@ -715,6 +794,23 @@ async function saveSheet(force){
  closeSheet();refresh();
 }
 
+/* "Take a photo": open the phone camera straight away */
+async function takePhoto(){
+ const cam=window.Capacitor&&Capacitor.Plugins&&Capacitor.Plugins.Camera;
+ if(cam){ // native Android/iOS camera inside the APK
+  try{
+   const p=await cam.getPhoto({quality:90,resultType:'base64',source:'CAMERA',saveToGallery:false,correctOrientation:true});
+   const bin=atob(p.base64String),u=new Uint8Array(bin.length);
+   for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);
+   return addFiles([new File([u],`photo_${Date.now()}.jpg`,{type:'image/jpeg'})]);
+  }catch(e){
+   if(/cancel/i.test(String(e&&e.message||e)))return; // user backed out
+   toast('Native camera unavailable, using file chooser');
+  }
+ }
+ $('#fCam').click(); // browser fallback: file input with capture="environment"
+}
+
 /* in-app confirm dialog (window.confirm is blocked in many WebViews) */
 function ask(msg){
  return new Promise(res=>{
@@ -738,7 +834,7 @@ document.addEventListener('click',async e=>{
  const a=el.dataset.act;
  if(a==='tab'){S.tab=el.dataset.t;render();scrollTo(0,0)}
  else if(a==='flt'){S.status=el.dataset.s;S.tab='invoices';render()}
- else if(a==='cam')$('#fCam').click();
+ else if(a==='cam')takePhoto();
  else if(a==='pick')$('#fPick').click();
  else if(a==='demo')addDemo();
  else if(a==='open')openSheet(el.dataset.id);
@@ -774,7 +870,9 @@ document.addEventListener('input',e=>{
 });
 document.addEventListener('change',e=>{
  const id=e.target.id;
- if(id==='from'){S.from=e.target.value;renderList()}
+ if(id==='aiOn'){try{localStorage.setItem('aiOn',e.target.checked?'1':'0')}catch(_){}toast(e.target.checked?'AI reading on':'AI reading off')}
+ else if(id==='aiKey'){try{localStorage.setItem('aiKey',e.target.value.trim())}catch(_){}toast('API key saved')}
+ else if(id==='from'){S.from=e.target.value;renderList()}
  else if(id==='to'){S.to=e.target.value;renderList()}
  else if(id==='vendor'){S.vendor=e.target.value;renderList()}
 });
